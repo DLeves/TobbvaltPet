@@ -1,14 +1,127 @@
 ---
 title: "Tobbvalt"
-output: html_document
 date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r libs}
+```{r libs, message=FALSE, warning=FALSE}
 library(tidyverse)
+library(knitr)
+library(kableExtra)
+```
+
+```{r read data}
+df = read.csv("data/train.csv")
+# test = read.csv("data/test.csv")
+```
+
+# Adatok bemutatása
+
+Az adatokat a Kaggle oldaláról szereztük, egy kezdőknek szóló machine learning verseny datasetje, ahol [amerikai ingatlanok](https://www.kaggle.com/competitions/house-prices-advanced-regression-techniques) árát kell megbecsülni. Az adatok között volt test és train set, amik abban térnek el egymástól, hogy a test set megfigyelései nem tartalmazzák az eladási árat. Ez érthető, hiszen a verseny lényege, hogy beküldjük eredményeinket.
+
+Mivel valahogy a túlillesztést el szeretnénk kerülni, ezért a train setünk tovább bontjuk 80-20%-ra, hogy abból legyen train és test datasetünk. Az 'eredeti' test set-re a becsléseinket pedig be fogjuk küldeni a versenyre. Amennyiben érkezik azokra válasz, úgy azt bemutatjuk az prezentéciónkban is.
+
+Érdemes lehet először az adatsor felső 5 sorát szemügyre venni.
+
+```{r df head, message=FALSE}
+head(df) %>%
+  kbl() %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
+  kable_paper() %>% 
+  scroll_box(width = "100%")
+```
+
+Mivel a lakásárakkal együtt 80 változónk van, ezért egyenként nem tudunk elmagyarázni minden változót, azonban a [data_description.txt](https://github.com/DLeves/TobbvaltPet/blob/master/data/data_description.txt) nevű fájlban minden változó ki van fejtve. A szükséges változókat azonban ismertetni fogjuk.
+
+Az adatokat szemügyre véve feltűnhet, hogy egyes kategorikus változóknál, pl a pincék (Basement) esetében, amikor nincsen pince, ott a változó értéke *NA*, vagyis hiányzik. Az adatok leírása ezt megerősíti. Ezeken felül nincsenek hiányzó értékek, így ezeket átírom *NA* helyett *"NA"*-ra.
+
+```{r replace NAs}
+df[is.na(df)] = "NA"
+```
+
+A leíró statisztika előtt a minőségi változókat *factor*-rá kell alakítani, hogy ennek mulasztásából következő hibákat elkerüljük.
+
+```{r}
+df[,c(2:4,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:80)] = lapply(df[,c(2:4,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:80)], factor)
+```
+
+## Leíró statisztika
+
+Leíró statisztikai mutatók a numerikus változókra:
+```{r describe}
+psych::describe(df, omit = T) %>%
+  kbl() %>% 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
+  kable_paper() %>% 
+  scroll_box(width = "100%", height = "300px")
+```
+
+
+
+## Adatvizualizáció
+
+
+### Hisztogramok
+```{r}
+ggplot(df, aes(SalePrice)) +
+  geom_histogram(fill = "cyan3") +
+  theme_minimal()+
+  labs(x = "Sale price", y = "Frequency")+
+  scale_x_continuous(labels = scales::dollar_format(scale = .001, suffix = "K"))
+```
+
+
+
+```{r}
+ggplot(df, aes(log(SalePrice))) +
+  geom_histogram(fill = "cyan3") +
+  theme_minimal()+
+  labs(x = "Ln(Sale price($))", y = "Frequency")
+```
+
+
+### Épület típusok
+
+```{r}
+ggplot(df,aes(y = MSZoning, fill = MSZoning))+
+  geom_bar(position = "dodge", stat = "count")+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  labs(x = "Number of real estates", y = "General zoning")
+```
+
+```{r}
+ggplot(df, aes(x = SalePrice, y = Neighborhood, col = Neighborhood))+
+  geom_boxplot()+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  labs(y = "Neighborhood", x = "Sale price")+
+  scale_x_continuous(labels = scales::dollar_format(scale = .001, suffix = "K"))
+```
+### Eladások havonta
+
+```{r}
+ts = df %>% 
+  mutate(YrMo = paste0(YrSold, "-", MoSold)) %>% 
+  count(YrMo)
+
+ts$YrMo = zoo::as.yearmon(ts$YrMo)
+
+ggplot(ts,aes(x = YrMo, y = n))+
+  geom_line(color = "cyan3", linewidth = .75)+
+  geom_point(color = "salmon")
+```
+
+## Korreláció
+
+```{r}
+
 ```
 
