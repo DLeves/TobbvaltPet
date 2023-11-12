@@ -16,6 +16,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(knitr)
 library(kableExtra)
+library(ppcor)
+library(corrplot)
 ```
 
 ```{r read data}
@@ -154,6 +156,7 @@ Látható, hogy minden évben kiugróak a május és július közötti lakásvá
 
 ## Korreláció
 
-```{r}
-
+```{r, fig.width= 10}
+corrplot(cor(select_if(df, is.numeric)), method = "color", col = COL2("BrBG"), diag = F, type = "lower")
 ```
+
