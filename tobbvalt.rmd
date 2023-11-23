@@ -18,6 +18,11 @@ library(knitr)
 library(kableExtra)
 library(ppcor)
 library(corrplot)
+library(glmnet)
+library(fastDummies)
+library(tidymodels)
+library(caTools)
+library(earth)
 ```
 
 ```{r read data}
@@ -46,7 +51,7 @@ Mivel a lakásárakkal együtt 80 változónk van, ezért egyenként nem tudunk 
 Az adatokat szemügyre véve feltűnhet, hogy egyes kategorikus változóknál, pl a pincék (Basement) esetében, amikor nincsen pince, ott a változó értéke *NA*, vagyis hiányzik. Az adatok leírása ezt megerősíti. Ezeken felül nincsenek hiányzó értékek, így ezeket átírom *NA* helyett *"NA"*-ra.
 
 ```{r replace NAs}
-df[is.na(df)] = "NA"
+df[is.na(df)] = "NaN"
 ```
 
 A leíró statisztika előtt a minőségi változókat *factor*-rá kell alakítani, hogy ennek mulasztásából következő hibákat elkerüljük.
@@ -160,3 +165,59 @@ Látható, hogy minden évben kiugróak a május és július közötti lakásvá
 corrplot(cor(select_if(df, is.numeric)), method = "color", col = COL2("BrBG"), diag = F, type = "lower")
 ```
 
+# Modellek
+
+A három választott modellcsaládunk a következők:
+-   Fa modellek
+-   Főkomponens-elemzés
+-   LASSO és MARS modellek
+
+Az adatokat tehát ketté bontjuk 80-20%-ban train és test dataset-ekre.
+
+```{r}
+sample = sample.split(df$SalePrice, SplitRatio = .8)
+train = subset(df, sample == T)
+test = subset(df, sample == F)
+```
+
+
+## Fa modellek
+
+### Boosting
+
+### Véletlen erdő
+
+## Főkomponens-elemzés
+
+## LASSO és MARS modellek
+
+### LASSO modell
+
+```{r}
+X = as.matrix(cbind(dummy_cols(train[,c(2:4,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:80)], remove_selected_columns = T, remove_first_dummy = T), train[,-c(2:4,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:81)]))
+y = log(train$SalePrice)
+lasso = cv.glmnet(X,y)
+```
+```{r}
+coef(lasso, lambda = lasso$lambda.1se)
+```
+
+```{r}
+plot(lasso)
+```
+
+### MARS modell
+
+```{r}
+mars = earth(log(SalePrice) ~., train, degree = 2)
+summary(mars)
+```
+
+### LASSO és MARS összehasonlítása a teszt adatokon
+
+```{r}
+
+```
+
+
+# Becsült adatok a versenyre
