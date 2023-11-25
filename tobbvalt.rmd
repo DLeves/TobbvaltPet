@@ -1,4 +1,3 @@
-<<<<<<< Updated upstream
 ---
 title: "Többváltozós adatelemzés Pet Project"
 author: "Dittrich Levente, Szabó Zente"
@@ -24,6 +23,8 @@ library(fastDummies)
 library(tidymodels)
 library(caTools)
 library(earth)
+library(plotmo)
+library(caret)
 ```
 
 ```{r read data}
@@ -190,234 +191,15 @@ test = subset(df, sample == F)
 
 ## Főkomponens-elemzés
 
-## LASSO és MARS modellek
-
-### LASSO modell
+### Sajátértékek
 
 ```{r}
-X = as.matrix(cbind(dummy_cols(train[,c(2:4,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:80)], remove_selected_columns = T, remove_first_dummy = T), train[,-c(2:4,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:81)]))
-y = log(train$SalePrice)
-lasso = cv.glmnet(X,y)
-```
-```{r}
-coef(lasso, lambda = lasso$lambda.1se)
-```
-
-```{r}
-plot(lasso)
-```
-
-### MARS modell
-
-```{r}
-mars = earth(log(SalePrice) ~., train, degree = 2)
-summary(mars)
-```
-
-### LASSO és MARS összehasonlítása a teszt adatokon
-
-```{r}
-
-```
-
-
-# Becsült adatok a versenyre
-=======
----
-title: "Többváltozós adatelemzés Pet Project"
-author: "Dittrich Levente, Szabó Zente"
-date: "`r Sys.Date()`"
-output:
-  html_document:
-    toc: true
-    toc_float: true
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-```{r libs, message=FALSE, warning=FALSE}
-library(knitr)
-library(kableExtra)
-library(ppcor)
-library(corrplot)
-library(dplyr)
-library(haven)
-library(factoextra)
-library(readxl)
-library(ggplot2)
-library(ggcorrplot)
-library(rpart)
-library(rpart.plot)
-library(randomForest)
-library(glmnet)
-library(fastDummies)
-library(earth)
-install.packages("cli")
-library(cli)
-library(caret)
-library(plotmo)
-library(party)
-library(partykit)
-library(mboost)
-library(plyr)
-```
-
-```{r read data}
-df = read.csv("data/train.csv")
-# test = read.csv("data/test.csv")
-```
-
-# Adatok bemutatása
-
-Az adatokat a Kaggle oldaláról szereztük, egy kezdőknek szóló machine learning verseny datasetje, ahol [amerikai ingatlanok](https://www.kaggle.com/competitions/house-prices-advanced-regression-techniques) árát kell megbecsülni. Az adatok között volt test és train set, amik abban térnek el egymástól, hogy a test set megfigyelései nem tartalmazzák az eladási árat. Ez érthető, hiszen a verseny lényege, hogy beküldjük eredményeinket.
-
-Mivel valahogy a túlillesztést el szeretnénk kerülni, ezért a train setünk tovább bontjuk 80-20%-ra, hogy abból legyen train és test datasetünk. Az 'eredeti' test set-re a becsléseinket pedig be fogjuk küldeni a versenyre. Amennyiben érkezik azokra válasz, úgy azt bemutatjuk az prezentációnkban is.
-
-Érdemes lehet először az adatsor felső 5 sorát szemügyre venni.
-
-```{r df head, message=FALSE}
-head(df) %>%
-  kbl() %>% 
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
-  kable_paper() %>% 
-  scroll_box(width = "100%")
-```
-
-Mivel a lakásárakkal együtt 80 változónk van, ezért egyenként nem tudunk elmagyarázni minden változót, azonban a [data_description.txt](https://github.com/DLeves/TobbvaltPet/blob/master/data/data_description.txt) nevű fájlban minden változó ki van fejtve. A szükséges változókat azonban ismertetni fogjuk.
-
-Az adatokat szemügyre véve feltűnhet, hogy egyes kategorikus változóknál, pl a pincék (Basement) esetében, amikor nincsen pince, ott a változó értéke *NA*, vagyis hiányzik. Az adatok leírása ezt megerősíti. Ezeken felül nincsenek hiányzó értékek, így ezeket átírom *NA* helyett *"NA"*-ra.
-
-```{r replace NAs}
-df[is.na(df)] = "NA"
-```
-
-A leíró statisztika előtt a minőségi változókat *factor*-rá kell alakítani, hogy ennek mulasztásából következő hibákat elkerüljük.
-
-```{r}
-df[,c(2:4,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:80)] = lapply(df[,c(2:4,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:80)], factor)
-```
-
-Hibás vagy más okokból eltávolítandó rekordokat nem találtunk az adatok között, így nincsen szükség semmilyen adattisztításra vagy pótlásra.
-
-## Leíró statisztika
-
-Leíró statisztikai mutatók a numerikus változókra:
-
-```{r describe}
-psych::describe(df, omit = T) %>%
-  kbl() %>% 
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
-  kable_paper() %>% 
-  scroll_box(width = "100%", height = "300px")
-```
-
-Mivel temérdek numerikus változónak van, ezért mindet nem szándékozzuk elemezni a leíró statisztikai mutatószámait alapul véve, azonban az eredményváltozó esetében ezt szükségesnek tartjuk.
-
-A SalePrice, azaz az eladási ár dollárban van megadva, lévén az USA-ban vannak ezek az ingatlanok. Az átlagos igatlanár \$180,921, a medián \$163,000. Ez utalhat arra, hogy az eloszlás jobbra elnyúló lehet, mivel a középérték az átlag alatt van. A jobbra elnyúló eloszlás a közgazdasági adatok esetében gyakori jelenség, rendszeresen szokták kezelni logaritmizálással. A szórás 79,442.5 USD, a MAD \$56,338.8, vagyis a mediántól vett adatok abszolút eltérésének mediánja. Az $\alpha_{3}$ és $\alpha_{4}$ értékei 1-nél és 3-nál nagyobbak, ami azt jelenti, hogy az eloszlás jobbra elnyúló és a normális eloszlásnál csúcsosabb.
-
-## Adatvizualizáció
-
-Mindenek előtt az előző pontban tárgyalt eladási ár hisztogramját vennénk szemügyre.
-
-### Hisztogramok
-
-```{r}
-ggplot(df, aes(SalePrice)) +
-  geom_histogram(fill = "cyan3") +
-  theme_minimal()+
-  labs(x = "Sale price", y = "Frequency")+
-  scale_x_continuous(labels = scales::dollar_format(scale = .001, suffix = "K"))
-```
-
-Látszik az, amit a leíró statisztikai mutatókból következtetni lehetett: jobbra elnyúló, csúcsos eloszlás. Érdemes lenne a természetes logaritmusát venni a leendő eredményváltozónknak és az eloszlását is szemügyre venni.
-
-```{r}
-ggplot(df, aes(log(SalePrice))) +
-  geom_histogram(fill = "cyan3") +
-  theme_minimal()+
-  labs(x = "Ln(Sale price($))", y = "Frequency")
-```
-
-Ez az eloszlás már sokkal jobban hasonlít a normális eloszláshoz, mint a logaritmizálás előtti.
-
-### Épület típusok
-
-Az adatok között többféle épülettípus is van, ezek a következők:
-
-| Rövidítés | Teljes név, angolul          | Fordítás |
-|:----------|:-----------------------------|:---------|
-| RM        | Residential Medium Density   | a        |
-| RL        | Residential Low Density      | a        |
-| RH        | Residential High Density     | a        |
-| FV        | Floating Village Residential | a        |
-| C         | Commercial                   | a        |
-
-Ábrázolva, hogy melyik típusból mennyi került eladásra a következőt látjuk:
-```{r}
-ggplot(df,aes(y = MSZoning, fill = MSZoning))+
-  geom_bar(position = "dodge", stat = "count")+
-  theme_minimal()+
-  theme(legend.position = "none")+
-  labs(x = "Number of real estates", y = "General zoning")
-```
-
-
-
-Az ingatlanok elhelyezkedése is kihatással lehet az árukra, ennek kiderítésére az egyes *Neighborhood*-okban eladott házak dobozábráit elkészítettük:
-
-```{r}
-ggplot(df, aes(x = SalePrice, y = Neighborhood, col = Neighborhood))+
-  geom_boxplot()+
-  theme_minimal()+
-  theme(legend.position = "none")+
-  labs(y = "Neighborhood", x = "Sale price")+
-  scale_x_continuous(labels = scales::dollar_format(scale = .001, suffix = "K"))
-```
-
-Láthatóan vannak olyan környékek, amik árai merőben eltérnek másokétól.
-
-### Eladások havonta
-
-Az adataink 2006 és 2010 közötti időszakból vannak, azon belül is hónap pontossággal tudjuk az eladások dátumát.
-
-```{r}
-ts = df %>% 
-  mutate(YrMo = paste0(YrSold, "-", MoSold)) %>% 
-  count(YrMo)
-
-ts$YrMo = zoo::as.yearmon(ts$YrMo)
-
-ggplot(ts,aes(x = YrMo, y = n))+
-  geom_line(color = "cyan3", linewidth = .75)+
-  geom_point(color = "salmon")+
-  theme_minimal()
-```
-
-Látható, hogy minden évben kiugróak a május és július közötti lakásvásárlások.
-
-
-## Korreláció
-
-```{r, fig.width= 10}
-corrplot(cor(select_if(df, is.numeric)), method = "color", col = COL2(diverging = c("RdYlBu")), diag = F, type = "lower")
-cor_df <- cor(select_if(df, is.numeric))
-corrplot(cor_df, method = "color", col = COL2(diverging = c("RdYlBu")), diag = F, type = "lower")
-```
-
-## Főkomponens elemzés
-
-Sajátértékek
-```{r}
-eigen_df <- eigen(cor_df)
+eigen_df <- eigen(cor(select_if(df, is.numeric)))
 eigen_df$values
 sum(eigen_df$values)
 ```
 
-Főkomponens elemzés az eladási árakon
-
-Kaiser-kritérium vizsgálatához:
+### Kaiser-kritérium vizsgálatához:
 
 ```{r}
 # numerikus adatok kiválasztása
@@ -438,63 +220,38 @@ pca$loadings[,1:11]
 ```
 Egyes főkomponensek jelentősen eltérnek, néhány a régebbi ingatlanokat értékeli jobban, más az újabbakat. Van ahol az alapterület pozitív súllyal, van ahol negatívval szerepel.
 
+## LASSO és MARS modellek
 
-##K-központú klaszterezés
-
-Megfelelő klaszterek száma
-
-```{r}
-klaszter <- kmeans(scale(df_num), centers = 11, nstart = 100, iter.max = 100)
-df_num$klaszter <- as.factor(klaszter$cluster)
-fviz_pca(pca, habillage=df_num$klaszter, addEllipses=TRUE)
-df <- cbind(df, pca$scores[,1:11])
-```
-
-Lásson
+### LASSO modell
 
 ```{r}
-lin_reg <- lm(log(SalePrice)~., data=df)
-summary(lin_reg)
-# LASSO
-set.seed(1)
-x <- as.matrix(dummy_cols(df_num, remove_selected_columns = TRUE, remove_first_dummy = TRUE))
-y <- log(df_num$SalePrice)
-LASSO <- cv.glmnet(x,y)
-plot(LASSO)
+X = as.matrix(cbind(dummy_cols(train[,c(2:4,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:80)], remove_selected_columns = T, remove_first_dummy = T), train[,-c(2:4,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:81)]))
+y = log(train$SalePrice)
+lasso = cv.glmnet(X,y)
 ```
+
 ```{r}
-LASSO$lambda.1se
+coef(lasso, lambda = lasso$lambda.1se)
 ```
+
 ```{r}
-coef(LASSO, lambda=LASSO$lambda.1se)
-LASSO_b <- glmnet(x,y, lambda = LASSO$lambda.1se)
-LASSO_b
+plot(lasso)
 ```
 
-##MARS
+### MARS modell
+
 ```{r}
-MARS <- earth(log(SalePrice)~., data=df, degree=2)
-summary(MARS)
+mars = earth(log(SalePrice) ~., train, degree = 2)
+summary(mars)
 ```
 
-Eredmények
 ```{r}
-plotmo(LASSO_b)
+plotmo(mars, ngrid2 = 306)
 ```
+
+### LASSO és MARS összehasonlítása a teszt adatokon
+
 ```{r}
-kv <- trainControl(method="cv", number=10)
-ismkv <- trainControl(method="repeatedcv", number=10, repeats=20)
 
-train(log(SalePrice)~., data=df, method="lm", trControl=ismkv)
 ```
 
-
-
-
-
-
-
-
-
-
->>>>>>> Stashed changes
