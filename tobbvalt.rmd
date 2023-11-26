@@ -25,6 +25,7 @@ library(caTools)
 library(earth)
 library(plotmo)
 library(caret)
+library(factoextra)
 ```
 
 ```{r read data}
@@ -53,13 +54,16 @@ Mivel a lakásárakkal együtt 80 változónk van, ezért egyenként nem tudunk 
 Az adatokat szemügyre véve feltűnhet, hogy egyes kategorikus változóknál, pl a pincék (Basement) esetében, amikor nincsen pince, ott a változó értéke *NA*, vagyis hiányzik. Az adatok leírása ezt megerősíti. Ezeken felül nincsenek hiányzó értékek, így ezeket átírom *NA* helyett *"NA"*-ra.
 
 ```{r replace NAs}
-df[is.na(df)] = "NaN"
+df[is.na(is.numeric(df))] = 0
+df[is.na(df)] = "Doesn't exist"
 ```
 
 A leíró statisztika előtt a minőségi változókat *factor*-rá kell alakítani, hogy ennek mulasztásából következő hibákat elkerüljük.
 
 ```{r}
 df[,c(2:4,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:80)] = lapply(df[,c(2:4,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:80)], factor)
+df$MasVnrArea = as.numeric(df$MasVnrArea)
+df[is.na(df)] = 0
 ```
 
 Hibás vagy más okokból eltávolítandó rekordokat nem találtunk az adatok között, így nincsen szükség semmilyen adattisztításra vagy pótlásra.
@@ -180,14 +184,58 @@ Az adatokat tehát ketté bontjuk 80-20%-ban train és test dataset-ekre.
 sample = sample.split(df$SalePrice, SplitRatio = .8)
 train = subset(df, sample == T)
 test = subset(df, sample == F)
+
+set.seed(2023)
+```
+
+## Klaszterezés
+
+```{r}
+n_df = scale((select_if(df[,-81], is.numeric)))
 ```
 
 
-## Fa modellek
+### Hierarchikus klaszterezés
 
-### Boosting
+```{r}
+hier = hclust(dist((n_df)), method = "ward.D")
+plot(hier)
+```
 
-### Véletlen erdő
+```{r}
+fviz_nbclust(n_df, FUNcluster = hcut, method = "gap_stat")
+```
+
+
+```{r}
+fviz_dend(hier, k = 9)
+```
+
+```{r}
+df_hc = as.data.frame(df) %>% 
+  mutate(cl = cutree(hier, k = 9))
+
+ggplot(df_hc, aes(log(LotArea), log(SalePrice), color = factor(cl)))+
+  geom_point()
+```
+
+
+### K-középpontú klaszterezés
+
+```{r}
+wss = sapply(1:15, function(x){kmeans(n_df, x, nstart = 100, iter.max = 100)$tot.withinss})
+
+plot(1:15, wss,
+     type = "b", pch = 19, frame = F,
+     xlab = "Number of clusters K",
+     ylab = "Total within-clusters sum of squares")
+```
+
+```{r}
+fviz_nbclust(n_df, FUNcluster = kmeans, method = "gap_stat")
+```
+
+
 
 ## Főkomponens-elemzés
 
@@ -201,12 +249,14 @@ sum(eigen_df$values)
 
 ### Kaiser-kritérium vizsgálatához:
 
+Numerikus adatok kiválasztása
+
 ```{r}
-# numerikus adatok kiválasztása
 df_num <- select_if(df, is.numeric)
 pca <- princomp(df_num[,-30], cor=TRUE)
 summary(pca)
 ```
+### Főkomponensek
 
 ```{r}
 eigen_df$values/sum(eigen_df$values)
@@ -225,7 +275,7 @@ Egyes főkomponensek jelentősen eltérnek, néhány a régebbi ingatlanokat ér
 ### LASSO modell
 
 ```{r}
-X = as.matrix(cbind(dummy_cols(train[,c(2:4,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:80)], remove_selected_columns = T, remove_first_dummy = T), train[,-c(2:4,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:81)]))
+X = as.matrix(cbind(dummy_cols(train[,c(2:3,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:80)], remove_selected_columns = T, remove_first_dummy = T), train[,-c(2:3,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:81)]))
 y = log(train$SalePrice)
 lasso = cv.glmnet(X,y)
 ```
@@ -252,6 +302,15 @@ plotmo(mars, ngrid2 = 306)
 ### LASSO és MARS összehasonlítása a teszt adatokon
 
 ```{r}
+test_x = as.matrix(cbind(dummy_cols(test[,c(2:3,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:80)], remove_selected_columns = T, remove_first_dummy = T), test[,-c(2:3,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:81)]))
 
+test$lasso_pred = exp(predict(lasso, test_x))
+
+test$mars_pred = exp(predict(mars, test[,-81]))
+```
+
+```{r}
+sum((test$lasso_pred - test$SalePrice)^2)
+sum((test$mars_pred - test$SalePrice)^2)
 ```
 
