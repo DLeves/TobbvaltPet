@@ -37,7 +37,7 @@ df = read.csv("data/train.csv")
 
 Az adatokat a Kaggle oldaláról szereztük, egy kezdőknek szóló machine learning verseny datasetje, ahol [amerikai ingatlanok](https://www.kaggle.com/competitions/house-prices-advanced-regression-techniques) árát kell megbecsülni. Az adatok között volt test és train set, amik abban térnek el egymástól, hogy a test set megfigyelései nem tartalmazzák az eladási árat. Ez érthető, hiszen a verseny lényege, hogy beküldjük eredményeinket.
 
-Mivel valahogy a túlillesztést el szeretnénk kerülni, ezért a train setünk tovább bontjuk 80-20%-ra, hogy abból legyen train és test datasetünk. Az 'eredeti' test set-re a becsléseinket pedig be fogjuk küldeni a versenyre. Amennyiben érkezik azokra válasz, úgy azt bemutatjuk az prezentációnkban is.
+Mivel valahogy a túlillesztést el szeretnénk kerülni, ezért a train setünk tovább bontjuk 80-20%-ra, hogy abból legyen train és test datasetünk.
 
 Érdemes lehet először az adatsor felső 5 sorát szemügyre venni.
 
@@ -54,16 +54,13 @@ Mivel a lakásárakkal együtt 80 változónk van, ezért egyenként nem tudunk 
 Az adatokat szemügyre véve feltűnhet, hogy egyes kategorikus változóknál, pl a pincék (Basement) esetében, amikor nincsen pince, ott a változó értéke *NA*, vagyis hiányzik. Az adatok leírása ezt megerősíti. Ezeken felül nincsenek hiányzó értékek, így ezeket átírom *NA* helyett *"NA"*-ra.
 
 ```{r replace NAs}
-df[is.na(is.numeric(df))] = 0
-df[is.na(df)] = "Doesn't exist"
+df[is.na(df)] = 0
 ```
 
 A leíró statisztika előtt a minőségi változókat *factor*-rá kell alakítani, hogy ennek mulasztásából következő hibákat elkerüljük.
 
 ```{r}
-df[,c(2:4,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:80)] = lapply(df[,c(2:4,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:80)], factor)
-df$MasVnrArea = as.numeric(df$MasVnrArea)
-df[is.na(df)] = 0
+df[,c(2:3,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:80)] = lapply(df[,c(2:3,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:80)], factor)
 ```
 
 Hibás vagy más okokból eltávolítandó rekordokat nem találtunk az adatok között, így nincsen szükség semmilyen adattisztításra vagy pótlásra.
@@ -115,11 +112,11 @@ Az adatok között többféle épülettípus is van, ezek a következők:
 
 | Rövidítés | Teljes név, angolul          | Fordítás |
 |:----------|:-----------------------------|:---------|
-| RM        | Residential Medium Density   | a        |
-| RL        | Residential Low Density      | a        |
-| RH        | Residential High Density     | a        |
-| FV        | Floating Village Residential | a        |
-| C         | Commercial                   | a        |
+| RM        | Residential Medium Density   |  Közepes sűrűségű lakóterület       |
+| RL        | Residential Low Density      |  Alacsony sűrűségű lakóterület       |
+| RH        | Residential High Density     |  Nagy sűrűségű lakóterület      |
+| FV        | Floating Village Residential |  Úszófalu lakóövezet       |
+| C         | Commercial                   |  Kereskedelmi      |
 
 Ábrázolva, hogy melyik típusból mennyi került eladásra a következőt látjuk:
 ```{r}
@@ -181,17 +178,18 @@ A három választott modellcsaládunk a következők:
 Az adatokat tehát ketté bontjuk 80-20%-ban train és test dataset-ekre.
 
 ```{r}
+set.seed(2023)
+
 sample = sample.split(df$SalePrice, SplitRatio = .8)
 train = subset(df, sample == T)
 test = subset(df, sample == F)
-
-set.seed(2023)
 ```
 
 ## Klaszterezés
 
 ```{r}
 n_df = scale((select_if(df[,-81], is.numeric)))
+n_df = n_df[!rowSums(is.na(n_df)),]
 ```
 
 
@@ -208,14 +206,14 @@ fviz_nbclust(n_df, FUNcluster = hcut, method = "gap_stat")
 
 
 ```{r}
-fviz_dend(hier, k = 9)
+fviz_dend(hier, k = 10)
 ```
 
 ```{r}
 df_hc = as.data.frame(df) %>% 
-  mutate(cl = cutree(hier, k = 9))
+  mutate(cl = cutree(hier, k = 10))
 
-ggplot(df_hc, aes(log(LotArea), log(SalePrice), color = factor(cl)))+
+ggplot(df_hc, aes(log(GrLivArea), log(SalePrice), color = factor(cl)))+
   geom_point()
 ```
 
@@ -235,6 +233,15 @@ plot(1:15, wss,
 fviz_nbclust(n_df, FUNcluster = kmeans, method = "gap_stat")
 ```
 
+```{r}
+km = kmeans(n_df, 3, nstart = 100, iter.max = 100)
+
+df_km = as.data.frame(df) %>% 
+  mutate(cl = km$cluster)
+
+ggplot(df_km, aes(log(GrLivArea), log(SalePrice), color = factor(cl), shape = MSZoning))+
+  geom_point()
+```
 
 
 ## Főkomponens-elemzés
@@ -265,7 +272,7 @@ eigen_df$values/sum(eigen_df$values)
 11 főkomponenst kell képezni, ezeknek van 1-nél (ugyan nem sokkal, de) nagyobb értéke.
 Ezzel az összinformáció ~70,3% (0.703362)-át őrizzük meg.
 
-```{r}
+```{r, max.height='100px', attr.output='.numberLines'}
 pca$loadings[,1:11]
 ```
 Egyes főkomponensek jelentősen eltérnek, néhány a régebbi ingatlanokat értékeli jobban, más az újabbakat. Van ahol az alapterület pozitív súllyal, van ahol negatívval szerepel.
@@ -275,42 +282,188 @@ Egyes főkomponensek jelentősen eltérnek, néhány a régebbi ingatlanokat ér
 ### LASSO modell
 
 ```{r}
+set.seed(2023)
+
 X = as.matrix(cbind(dummy_cols(train[,c(2:3,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:80)], remove_selected_columns = T, remove_first_dummy = T), train[,-c(2:3,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:81)]))
+# X = X[, !colSums(is.na(X))]
 y = log(train$SalePrice)
 lasso = cv.glmnet(X,y)
 ```
 
-```{r}
-coef(lasso, lambda = lasso$lambda.1se)
-```
+A LASSO modellünket létre hoztuk, azonban meg kell határozzuk, hogy mekkora $\lambda$ hiperparaméterre van szükségünk. Ehhez a különböző lambdákhoz tartozó hibák értékét nézzük meg.
 
-```{r}
+```{r, max.height='100px', attr.output='.numberLines'}
 plot(lasso)
 ```
 
-### MARS modell
+Az optimális $log(\lambda)$ valahol -4 és -2 között van, ezt meg tudjuk nézni a modellből is:
 
 ```{r}
+log(lasso$lambda.1se)
+lasso$lambda.1se
+```
+
+A modell eleve az $e$-re emelt lamdát adja vissza, ami ~0,0595. Ezt logaritmizálva megkapjuk a grafikonról megsejtett -3 és -2 közötti számot, körülbelül -2,823. Ezzel a $\lambda$ büntetőtaggal a legjobb a modell teljesítménye, a kevésbé fontos együtthatók értékét nullára csökkenti, $e$-re emelve a 0 együtthatójú változók értéke 1 lesz, azaz c.p. egyszeresére változtatja az eredményváltozót az egységnyi növekedése.
+
+A jobb értelmezhetőség érdekében a koefficienseket $e$-re emeljük, így azt kapjuk meg, hogy az adott magyarázó változó egy egységnyi növekedése(vagy kategorikus változó esetében ha abba a kaegóriába esik), akkor ceteris paribus hányszorosára fog nőni az eredményváltozó, azaz a lakásár.
+
+```{r, max.height='100px', attr.output='.numberLines'}
+exp(coef(lasso, lambda = lasso$lambda.1se))
+```
+
+Mivel nagyon sok változónk van, ezért nem tudjuk mindegyiket értelmezni. Ezzel a $\lambda$ paraméterrel azonban a legtöbb változó $e$-re emelt értéke egy, azaz nincsen hatása az eredményváltozóra. A maradék változók közül a legfontosabbakat (szerintünk) emelnénk ki.
+
+Fontos változónak tartjuk a *YearBuilt* és *YearRemodAdd* változókat. Ezek a változók azt mutatják meg, hogy mikor épült a ház és mikor lett felújítva utoljára. Amennyiben nem lett felújítva, úgy az építési évet tartalmazza. Ceteris paribus ha egy ház egy évvel később épült, akkor 0,16%-kal többe kerül. Ez teljesen logikus, hiszen minél később épült, annál újabb a ház. Az utolsó felújítás dátuma is növeli az árat, mégpedig minden egyes év 0,19%-kal növeli az eladási árat. Érdemes figyelembe venni, hogy a ezek házak nagyrészt a 20. és 21. században épületk, így habár egy évnyi változás nem számít sokat, azonban egy 30 éves és egy új ház között már észrevehető különbségek vannak.
+
+A *GrLivArea* nevű változó a föld feletti lakóépület alapterülete négyzetlábban(squarefeet), aminek szintén pozitív hatása van az árra. C.p. egy négyzetlábnyi alapterület-növekedés 0,02%-kal nő a ház ára. Ez szintén nem magas $\beta$, viszont itt is érdemes figyelembe venni, hogy egy négyzetláb körülbelül 0,093 négyzetméter.
+
+Mivel USA-beli ingatlanokról lévén szó, a modellben a garázsba beférő autók száma és a kandallók száma is fontos változó. C.p. eggyel több férőhelyes garázs 11,05%-kal növeli a vételárat, míg eggyel több kandalló 3,39%-kal.
+
+### MARS modell
+
+A MARS modellünkben megengedjük, hogy két változó interakcióba léphessen egymással.
+
+```{r}
+set.seed(2023)
+
 mars = earth(log(SalePrice) ~., train, degree = 2)
 summary(mars)
 ```
 
-```{r}
-plotmo(mars, ngrid2 = 306)
-```
+A modell $R^{2}$-e nagyon magas, meg vagyunk elégedve a teljesítményével. A modell a variancia 94,29%-kát magyarázza.
 
-### LASSO és MARS összehasonlítása a teszt adatokon
+Az értelmezéshez szintén $e$-re emeljük a koefficienseket.
 
 ```{r}
-test_x = as.matrix(cbind(dummy_cols(test[,c(2:3,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:80)], remove_selected_columns = T, remove_first_dummy = T), test[,-c(2:3,6:19,22:26,28:34,36,40:43,54,56,58,59,61,64:66,73:75,77:81)]))
-
-test$lasso_pred = exp(predict(lasso, test_x))
-
-test$mars_pred = exp(predict(mars, test[,-81]))
+exp(mars$coefficients)
 ```
+
+A MARS modellünkben is rengeteg változó és interakció van.
+
+A tengelymetszet 236 210,6$, vagyis amennyiben minden változó nulla, akkor ennyibe kerül egy ingatlan.
+
+Ez esetben is megjelentek a LASSO modellben is tárgyalt változók, azonban több változónak is lett zsanér(hinge) függvénye. Ismét nem szeretnénk végigmenni minden változón egyenként, viszont az előző modellből kiemelteken biztosan és még pár, a modell által fontosabbnak tartotton igen.
+
+Az építési év, vagyis a *YearBuilt* nevű változó a MARS modell szerint a legfontosabb változó. C.p. amennyiben egy évvel később épült egy ház, úgy az ára 2004-ig 0,03%-kal nő, utána pedig 0,31%-kal csökken.
+
+A *GrLivArea* nevű változó, vagyis a föld feletti alapterület szintén fontos a modell szerint, c.p. 1939 négyzetlábig egy négyzetlábnyi emelkedés az alapterületben 0,03%-nyi árnövekedést jelent, míg 1939 négyzetláb után az egységnyi alapterület növekedés 0,036%-nyi árcsökkenést jelent.
+
+A garázs beférő autók száma itt is megjelent, az egy férőhelyes garázs a nulla férőhelyes garázshoz képest c.p. 24%-kal növeli az eladási árat, azonban minden egyes újabb férőhely-növekedés csökkenti azt 32,6%-kal.
+
+A modell szerint fontos változó a *TotalBsmtSF* vagyis a teljes pince alapterülete. Ez szintén egy hinge fügyvénnyel szerepel a modellben, 2121 négyzetláb alatt nem változtat az áron, azonban ez felett minden egyes négyzetláb növekedés 0,01%-kal csökkenti az eladási árat.
+
+Állítottunk be seed-et, viszont így is két futtatás között megváltoztak az együtthatók és egyes esetekben a kiválasztott változók is, így itt van az az $e$-re emelt output, amit értelmeztünk:
+
+                                        log(SalePrice)
+(Intercept)                             236217.6616888
+
+h(GrLivArea-1939)                            1.0003014
+
+h(1939-GrLivArea)                            0.9996407
+
+h(YearBuilt-2004)                            1.0313010
+
+h(2004-YearBuilt)                            0.9968511
+
+h(2121-TotalBsmtSF)                          0.9998704
+
+h(GarageCars-1)                              1.2394954
+
+h(1-GarageCars)                              0.6739098
+
+h(2004-YearBuilt)*h(YearRemodAdd-1971)       1.0000298
+
+h(1518-BsmtFinSF1)                           0.9999662
+
+KitchenAbvGr*h(GarageCars-1)                 0.8617491
+
+NeighborhoodEdwards*h(GrLivArea-1939)        0.9994623
+
+NeighborhoodCrawfor*h(2121-TotalBsmtSF)      1.0001111
+
+OverallCond3                                 0.7491963
+
+h(LotArea-6629)*h(1518-BsmtFinSF1)           1.0000000
+
+h(6629-LotArea)*h(1518-BsmtFinSF1)           1.0000000
+
+OverallCond4                                 0.8199222
+
+OverallCond5*h(2004-YearBuilt)               0.9978845
+
+BsmtExposureGd*h(GarageCars-1)               1.0524385
+
+FunctionalTyp                                1.0882471
+
+h(1518-BsmtFinSF1)*h(2-Fireplaces)           0.9999664
+
+OverallCond4*RoofStyleGambrel                0.3594918
+
+OverallCond6*h(2004-YearBuilt)               0.9988094
+
+h(2004-YearBuilt)*SaleConditionNormal        1.0007675
+
+OverallCond3*GarageYrBlt1958                 0.5762609
+
+BsmtQualEx                                   1.0644363
+
+OverallQual8*h(1939-GrLivArea)               1.0001904
+
+h(2004-YearBuilt)*Exterior1stBrkFace         1.0019601
+
+h(1-GarageCars)*FenceGdWo                    0.6573255
+
+h(YearBuilt-2004)*h(474-GarageArea)          0.9994175
+
+GarageYrBlt1952*h(GarageCars-1)              0.5120004
+
+ExterQualTA*h(1-GarageCars)                  1.3567470
+
+ExterQualTA                                  0.9576057
+
+MSZoningRM                                   0.9374751
+
+NeighborhoodBrkSide*h(2004-YearBuilt)        1.0011472
+
+Condition1Norm                               1.0477374
+
+OverallQual10*h(2004-YearBuilt)              1.0034633
+
+OverallQual9                                 1.0962911
+
+h(BsmtFullBath-1)*h(GarageCars-1)            1.0947250
+
+h(1-BsmtFullBath)*h(GarageCars-1)            0.9780025
 
 ```{r}
-sum((test$lasso_pred - test$SalePrice)^2)
-sum((test$mars_pred - test$SalePrice)^2)
+plotmo(mars, ngrid2 = 308)
 ```
 
+## Modellek összahasonlítása
+
+Először is a teszt adatokon becsülünk a modellekkel
+
+```{r}
+x = cbind(df[-81], sample)
+x = as.matrix(dummy_cols(x, remove_first_dummy = T, remove_selected_columns = T))
+x = x[x[,"sample"] == 0,-ncol(x)]
+
+
+test$lasso_pred = exp(predict(lasso, x))
+
+test$mars_pred = exp(predict(mars, test))
+```
+
+Majd pedig kiszámoljuk a Root Mean Squared Errort vagyis a átlagos hibanégyzetösszegek gyökét.
+
+Ez a LASSO esetében:
+```{r}
+sqrt(sum((test$lasso_pred-test$SalePrice)^2))
+```
+
+A MARS esetében pedig:
+```{r}
+sqrt(sum((test$mars_pred-test$SalePrice)^2))
+```
+
+A MARS modell jobban szerepelt, az RMSE-je töredéke a LASSO RMSE-jének.
