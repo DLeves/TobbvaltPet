@@ -206,12 +206,12 @@ fviz_nbclust(n_df, FUNcluster = hcut, method = "gap_stat")
 
 
 ```{r}
-fviz_dend(hier, k = 10)
+fviz_dend(hier, k = 2)
 ```
 
 ```{r}
 df_hc = as.data.frame(df) %>% 
-  mutate(cl = cutree(hier, k = 10))
+  mutate(cl = cutree(hier, k = 2))
 
 ggplot(df_hc, aes(log(GrLivArea), log(SalePrice), color = factor(cl)))+
   geom_point()
@@ -234,7 +234,7 @@ fviz_nbclust(n_df, FUNcluster = kmeans, method = "gap_stat")
 ```
 
 ```{r}
-km = kmeans(n_df, 3, nstart = 100, iter.max = 100)
+km = kmeans(n_df, 9, nstart = 100, iter.max = 100)
 
 df_km = as.data.frame(df) %>% 
   mutate(cl = km$cluster)
@@ -340,7 +340,7 @@ exp(mars$coefficients)
 
 A MARS modellünkben is rengeteg változó és interakció van.
 
-A tengelymetszet 236 210,6$, vagyis amennyiben minden változó nulla, akkor ennyibe kerül egy ingatlan.
+A tengelymetszet 236 217,7$, vagyis amennyiben minden változó nulla, akkor ennyibe kerül egy ingatlan.
 
 Ez esetben is megjelentek a LASSO modellben is tárgyalt változók, azonban több változónak is lett zsanér(hinge) függvénye. Ismét nem szeretnénk végigmenni minden változón egyenként, viszont az előző modellből kiemelteken biztosan és még pár, a modell által fontosabbnak tartotton igen.
 
@@ -449,7 +449,7 @@ x = as.matrix(dummy_cols(x, remove_first_dummy = T, remove_selected_columns = T)
 x = x[x[,"sample"] == 0,-ncol(x)]
 
 
-test$lasso_pred = exp(predict(lasso, x))
+test$lasso_pred = exp(predict(lasso, x, s = lasso$lambda.1se))
 
 test$mars_pred = exp(predict(mars, test))
 ```
