@@ -216,7 +216,8 @@ df_hc = as.data.frame(df) %>%
 ggplot(df_hc, aes(log(GrLivArea), log(SalePrice), color = factor(cl)))+
   geom_point()
 ```
-
+A Gap-Statisztika segítségével meghatároztuk az optimális klaszterek számát, majd ezt endogramon megjelenítettük. A fák ágai nagyon hamar rendkívül szerteágazóak lesznek a sok változó miatt.
+A pontdiagramon (log alapterült - log eladási ár) látszik azonban, hogy a csoportokon belül még jelentős az eltérés, a klaszterekben lévő pontok elég távol helyezkednek el egymástól (nem elég homogén a két csoport).
 
 ### K-középpontú klaszterezés
 
@@ -243,6 +244,7 @@ ggplot(df_km, aes(log(GrLivArea), log(SalePrice), color = factor(cl), shape = MS
   geom_point()
 ```
 
+A k-központú klaszterezéssel a homogenitást szerettük volna növelni (csökkenteni a klasztereken belüli különbségeket), erre a módszerre a Gap-Statisztika 9 klasztert adott válaszként. A pontdiagramon is látszik hogy a csoporton belüli távolságok csökkentek, viszont a csoportok közti távolságokat továbbra is alacsonyak, tehát nem teljesen ideális a klaszterezés.
 
 ## Főkomponens-elemzés
 
@@ -275,7 +277,8 @@ Ezzel az összinformáció ~70,3% (0.703362)-át őrizzük meg.
 ```{r, max.height='100px', attr.output='.numberLines'}
 pca$loadings[,1:11]
 ```
-Egyes főkomponensek jelentősen eltérnek, néhány a régebbi ingatlanokat értékeli jobban, más az újabbakat. Van ahol az alapterület pozitív súllyal, van ahol negatívval szerepel.
+
+Egyes főkomponensek jelentősen eltérnek, néhány például a régebbi ingatlanokat értékeli jobban, más az újabbakat, máshol az alapterület pozitív súllyal, van ahol negatívval szerepel. Érdekesség, hogy szinte egyik változó sem szerepel csupa pozitív vagy negatív koefficienssel.
 
 ## LASSO és MARS modellek
 
