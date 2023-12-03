@@ -216,6 +216,7 @@ df_hc = as.data.frame(df) %>%
 ggplot(df_hc, aes(log(GrLivArea), log(SalePrice), color = factor(cl)))+
   geom_point()
 ```
+
 A Gap-Statisztika segítségével meghatároztuk az optimális klaszterek számát, majd ezt endogramon megjelenítettük. A fák ágai nagyon hamar rendkívül szerteágazóak lesznek a sok változó miatt.
 A pontdiagramon (log alapterült - log eladási ár) látszik azonban, hogy a csoportokon belül még jelentős az eltérés, a klaszterekben lévő pontok elég távol helyezkednek el egymástól (nem elég homogén a két csoport).
 
@@ -272,7 +273,7 @@ eigen_df$values/sum(eigen_df$values)
 ```
 
 11 főkomponenst kell képezni, ezeknek van 1-nél (ugyan nem sokkal, de) nagyobb értéke.
-Ezzel az összinformáció ~70,3% (0.703362)-át őrizzük meg.
+Ezzel az összinformáció ~71,2% (0.7116)-át őrizzük meg.
 
 ```{r, max.height='100px', attr.output='.numberLines'}
 pca$loadings[,1:11]
